@@ -41,84 +41,63 @@ resources:
           Ref: WebAppS3Bucket
         PolicyDocument:
           Statement:
-            - Sid: PublicReadGetObject
+            - Sid: "AllowCloudFrontAccessIdentity"
               Effect: Allow
-              Principal: "*"
-              Action:
-              - s3:GetObject
-              Resource: 
-                Fn::Join: [
-                  "", [
-                    "arn:aws:s3:::",
-                    { "Ref": "WebAppS3Bucket" },
-                    "/*"
-                  ]
-                ]
+              Principal:
+                AWS:
+                  Fn::Join:
+                    - " "
+                    - - "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity"
+                      - !Ref OriginAccessIdentity
+              Action: s3:GetObject
+              Resource: arn:aws:s3:::${self:custom.s3BucketName}/*
     ## Specifying the CloudFront Distribution to server your Web Application
+    OriginAccessIdentity:
+      Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+      Properties:
+        CloudFrontOriginAccessIdentityConfig:
+          Comment: Access identity between CloudFront and S3 bucket
+
     WebAppCloudFrontDistribution:
       Type: AWS::CloudFront::Distribution
       Properties:
         DistributionConfig:
           Origins:
-            - DomainName:
-                Fn::Join: [
-                  "", [
-                    { "Ref": "WebAppS3Bucket" },
-                    ".s3.amazonaws.com"
-                  ]
-                ]
-              ## An identifier for the origin which must be unique within the distribution
-              Id: WebApp
-              CustomOriginConfig:
-                HTTPPort: 80
-                HTTPSPort: 443
-                OriginProtocolPolicy: https-only
-              ## In case you want to restrict the bucket access use S3OriginConfig and remove CustomOriginConfig
-              # S3OriginConfig:
-              #   OriginAccessIdentity: origin-access-identity/cloudfront/E127EXAMPLE51Z
-          Enabled: 'true'
-          ## Uncomment the following section in case you are using a custom domain
-          # Aliases:
-          # - mysite.example.com
+            - DomainName: ${self:custom.s3BucketName}.s3.amazonaws.com
+              Id: myS3Origin
+              S3OriginConfig:
+                OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${OriginAccessIdentity}
+          Enabled: true
+          IPV6Enabled: true
+          HttpVersion: http2
           DefaultRootObject: index.html
-          ## Since the Single Page App is taking care of the routing we need to make sure ever path is served with index.html
-          ## The only exception are files that actually exist e.h. app.js, reset.css
           CustomErrorResponses:
             - ErrorCode: 404
               ResponseCode: 200
               ResponsePagePath: /index.html
           DefaultCacheBehavior:
-            AllowedMethods:
-              - DELETE
-              - GET
-              - HEAD
-              - OPTIONS
-              - PATCH
-              - POST
-              - PUT
-            ## The origin id defined above
-            TargetOriginId: WebApp
-            ## Defining if and how the QueryString and Cookies are forwarded to the origin which in this case is S3
+            AllowedMethods: ["GET", "HEAD", "OPTIONS"]
+            CachedMethods: ["GET", "HEAD", "OPTIONS"]
             ForwardedValues:
-              QueryString: 'false'
+              Headers:
+                - Access-Control-Request-Headers
+                - Access-Control-Request-Method
+                - Origin
+                - Authorization
+              QueryString: false
               Cookies:
                 Forward: none
-            ## The protocol that users can use to access the files in the origin. To allow HTTP use `allow-all`
+            TargetOriginId: myS3Origin
             ViewerProtocolPolicy: redirect-to-https
-          ## The certificate to use when viewers use HTTPS to request objects.
+            Compress: true
+            DefaultTTL: 0
           ViewerCertificate:
-            CloudFrontDefaultCertificate: 'true'
-          ## Uncomment the following section in case you want to enable logging for CloudFront requests
-          # Logging:
-          #   IncludeCookies: 'false'
-          #   Bucket: mylogs.s3.amazonaws.com
-          #   Prefix: myprefix
+            CloudFrontDefaultCertificate: "true"
 
-  ## In order to print out the hosted domain via `serverless info` we need to define the DomainName output for CloudFormation
   Outputs:
     WebAppS3BucketOutput:
       Value:
-        'Ref': WebAppS3Bucket
+        "Ref": WebAppS3Bucket
     WebAppCloudFrontDistributionOutput:
       Value:
-        'Fn::GetAtt': [ WebAppCloudFrontDistribution, DomainName ]
+        "Fn::GetAtt": [WebAppCloudFrontDistribution, DomainName]

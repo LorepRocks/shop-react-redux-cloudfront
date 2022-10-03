@@ -75,8 +75,8 @@ Remove an entire stack configured in `serverless.yml` via CloudFormation.
 
 ### `S3 Bucket URL`
 
-http://w3b-serverless-4sew.s3-website-us-east-1.amazonaws.com/
+https://w3b-serverless-4sew.s3.amazonaws.com/index.html
 
 ### `CloudFront URL` 
 
-https://d2xhsathle36cj.cloudfront.net/
+https://di70a8vp1tfwh.cloudfront.net/
